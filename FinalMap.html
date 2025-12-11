@@ -787,6 +787,9 @@ console.log('Flood way layer created:', floodWayLayer);
 // Add preNDVI by default
 preNDVILayer.addTo(mymap);
 
+// Show opacity control by default since we're loading a layer
+document.getElementById('opacity-control').classList.add('active');
+
 // NDVI LEGEND CONTROL
 var ndviLegend = L.control({ position: 'bottomright' });
 
@@ -945,6 +948,9 @@ ndviButtons.forEach(btn => {
 // Add the pre-NDVI legend by default
 console.log('Adding default legend');
 ndviLegend.addTo(mymap);
+
+// Set default description
+document.getElementById('description-box').innerHTML = '<strong>Pre-Hurricane NDVI:</strong> This Normalized Difference Vegetation Index (NDVI) shows the vegetation health and density in the flood area of Buncombe County before Hurricane Helene. Green areas indicate healthy vegetation, while brown/tan areas indicate sparse vegetation or urban areas.<br><br>Date Range: July 1st - August 31st, 2024.<br><br> Data Source: Harmonized Sentinel-2 MSI: Multispectral Instrument, Level-2A (SR)';
 
 // ---- OPACITY SLIDER LOGIC ---- //
 document.getElementById('opacity-slider').addEventListener('input', (e) => {
