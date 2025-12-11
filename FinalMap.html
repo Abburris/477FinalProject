@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hurricane Helene Visualization</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
+<!-- Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+<!-- Optional: color scales -->
+<script src="https://unpkg.com/chroma-js@2.1.0/chroma.min.js"></script>
+
+<!-- Boundary data -->
+<script src="./HeleneFbBunc.js"></script>
+<script src="./floodZoneAE_Clip.js"></script>
+<script src="./floodWayAE_Clip.js"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        margin: 0;
+        padding: 20px;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    #headline {
+        color: white;
+        text-align: center;
+        font-size: 28px;
+        font-weight: 700;
+        margin: 20px 0;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        letter-spacing: -0.5px;
+    }
+    
+    #myfirstmap { 
+        height: 600px; 
+        width: 100%;
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    /* Button container below title */
+    #ndvi-buttons {
+        margin: 20px 0;
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 0 20px;
+    }
+
+    .ndvi-btn {
+        background: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .ndvi-btn::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(103, 126, 234, 0.2);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+    
+    .ndvi-btn:hover::before {
+        width: 300px;
+        height: 300px;
+    }
+
+    .ndvi-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+
+    .ndvi-btn.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        transform: scale(1.05);
+        box-shadow: 0 8px 20px rgba(103, 126, 234, 0.4);
+    }
+    
+    /* Legend styling */
+    .info.legend {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        line-height: 2;
+        max-width: 280px;
+        margin-bottom: 120px;
+        border: 1px solid rgba(255,255,255,0.3);
+        animation: slideInRight 0.5s ease;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .info.legend h4 {
+        margin: 0 0 14px 0;
+        font-weight: 700;
+        font-size: 15px;
+        color: #333;
+        border-bottom: 2px solid #667eea;
+        padding-bottom: 8px;
+    }
+
+    .info.legend i {
+        width: 24px;
+        height: 24px;
+        float: left;
+        margin-right: 10px;
+        margin-bottom: 5px;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .info.legend br {
+        clear: both;
+    }
+    
+    /* Old layer buttons styles (kept if needed) */
+  #layer-buttons {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: none;
+    gap: 10px;
+  }
+
+  .layer-btn {
+    background: white;
+    border: 1px solid #aaa;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .layer-btn.active {
+    background: #2c7be5;
+    color: white;
+    border-color: #1f5fbd;
+  }
+
+  /*LULC chart style*/
+  .chart-panel {
+  position: absolute;
+  bottom: 30px;
+  left: 30px;
+  width: 320px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  z-index: 999;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+
+.chart-panel h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+}
+
+.hidden {
+  display: none;
+}
+
+#chart-section {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  margin: 20px;
+  animation: fadeInUp 0.6s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#chart-section h3 {
+  text-align: center;
+  margin-top: 0;
+  color: #333;
+  font-weight: 700;
+  font-size: 22px;
+}
+
+/* Flood layers control pane */
+#flood-control-pane {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  z-index: 999;
+  display: none;
+  min-width: 240px;
+  border: 1px solid rgba(255,255,255,0.3);
+  animation: slideInLeft 0.5s ease;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+#flood-control-pane.active {
+  display: block;
+}
+
+#flood-control-pane h4 {
+  margin: 0 0 14px 0;
+  font-weight: 700;
+  font-size: 15px;
+  color: #333;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 8px;
+}
+
+.flood-layer-checkbox {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.flood-layer-checkbox:hover {
+  background: rgba(103, 126, 234, 0.1);
+  transform: translateX(3px);
+}
+
+.flood-layer-checkbox input[type="checkbox"] {
+  margin-right: 10px;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #667eea;
+}
+
+.flood-layer-checkbox label {
+  cursor: pointer;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.flood-color-indicator {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Text description box */
+#description-box {
+  margin: 30px 20px;
+  padding: 24px;
+  background: white;
+  border: none;
+  border-radius: 12px;
+  min-height: 80px;
+  font-size: 14px;
+  line-height: 1.8;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  color: #333;
+  transition: all 0.3s ease;
+}
+
+#description-box:hover {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+}
+
+* {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Opacity slider control */
+#opacity-control {
+  position: absolute;
+  bottom: 200px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  z-index: 998;
+  display: none;
+  width: 200px;
+  border: 1px solid rgba(255,255,255,0.3);
+  animation: slideInLeft 0.5s ease;
+}
+
+#opacity-control.active {
+  display: block;
+}
+
+#opacity-control h4 {
+  margin: 0 0 12px 0;
+  font-weight: 700;
+  font-size: 13px;
+  color: #333;
+}
+
+#opacity-slider {
+  width: 100%;
+  cursor: pointer;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #667eea, #764ba2);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  border: 2px solid #667eea;
+}
+
+#opacity-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  border: 2px solid #667eea;
+}
+
+#opacity-value {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-top: 8px;
+}
+
+/* NDVI Data Table Styling */
+#ndvi-table-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 2px solid #e0e0e0;
+}
+
+#ndvi-table-section h4 {
+  text-align: center;
+  color: #333;
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+.ndvi-data-table {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  border-collapse: collapse;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ndvi-data-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.ndvi-data-table th {
+  padding: 15px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.ndvi-data-table tbody tr {
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.ndvi-data-table tbody tr:nth-child(even) {
+  background: #f8f9fa;
+}
+
+.ndvi-data-table tbody tr:hover {
+  background: #e8ebff;
+  transform: scale(1.01);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.ndvi-data-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+}
+
+.ndvi-data-table .land-class-cell {
+  font-weight: 600;
+  color: #333;
+}
+
+.ndvi-data-table .ndvi-value-cell {
+  font-weight: 700;
+  text-align: center;
+}
+
+.ndvi-data-table .loss-severity-cell {
+  text-align: center;
+  font-weight: 500;
+}
+
+.severity-severe { color: #8b0000; }
+.severity-significant { color: #dc143c; }
+.severity-moderate { color: #ff6347; }
+.severity-low { color: #ffa500; }
+.severity-minimal { color: #32cd32; }
+</style>
+
+<body>
+    <h3 id="headline">Visualizing the Impacts of Hurricane Helene on Buncombe County</h3>
+    <div id="ndvi-buttons">
+        <button class="ndvi-btn" data-layer="boundary">Flood Boundary</button>
+        <button class="ndvi-btn active" data-layer="pre">Pre-Hurricane NDVI</button>
+        <button class="ndvi-btn" data-layer="post">Post-Hurricane NDVI</button>
+        <button class="ndvi-btn" data-layer="delta">ΔNDVI (Change)</button>
+        <button class="ndvi-btn" data-layer="yearpost">One Year Post-Hurricane NDVI</button>
+        <button class="ndvi-btn" data-layer="lulc">Land Use/Land Cover</button>
+        
+    </div>
+    </div>
+    <div id="myfirstmap">
+        <!-- Flood layers control pane -->
+        <div id="flood-control-pane">
+            <h4>Flood Layers</h4>
+            <div class="flood-layer-checkbox">
+                <input type="checkbox" id="cb-boundary" checked>
+                <div class="flood-color-indicator" style="background: #0000FF;"></div>
+                <label for="cb-boundary">Hurricane Helene Flood Levels</label>
+            </div>
+            <div class="flood-layer-checkbox">
+                <input type="checkbox" id="cb-zone" checked>
+                <div class="flood-color-indicator" style="background: #FFD700;"></div>
+                <label for="cb-zone">FEMA 100-year Floodplain</label>
+            </div>
+            <div class="flood-layer-checkbox">
+                <input type="checkbox" id="cb-way" checked>
+                <div class="flood-color-indicator" style="background: #FF4500;"></div>
+                <label for="cb-way">FEMA Floodway</label>
+            </div>
+        </div>
+    </div>
+    
+    
+    <!-- Opacity slider control -->
+    <div id="opacity-control">
+        <h4>NDVI Opacity</h4>
+        <input type="range" id="opacity-slider" min="0" max="100" value="100">
+        <div id="opacity-value">100%</div>
+    </div>
+    
+    <!-- Chart containers below map -->
+    <div id="chart-section" class="hidden" style="margin-top: 30px;">
+        <h3>Land Use/Land Cover Analysis</h3>
+        <div style="display: flex; gap: 30px; justify-content: center;">
+            <div style="width: 45%;">
+                <canvas id="lulcChart"></canvas>
+            </div>
+            <div style="width: 45%;">
+                <canvas id="lulcPieChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- NDVI by Land Cover Table -->
+        <div id="ndvi-table-section">
+            <h4>Mean NDVI Change by Land Cover Class</h4>
+            <table class="ndvi-data-table">
+                <thead>
+                    <tr>
+                        <th>Land Class Cover</th>
+                        <th style="text-align: center;">Mean NDVI Value</th>
+                        <th style="text-align: center;">Vegetation Loss</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="land-class-cell">Trees</td>
+                        <td class="ndvi-value-cell">-0.36</td>
+                        <td class="loss-severity-cell severity-significant">Significant loss</td>
+                    </tr>
+                    <tr>
+                        <td class="land-class-cell">Grassland</td>
+                        <td class="ndvi-value-cell">-0.22</td>
+                        <td class="loss-severity-cell severity-moderate">Moderate loss</td>
+                    </tr>
+                    <tr>
+                        <td class="land-class-cell">Cropland</td>
+                        <td class="ndvi-value-cell">-0.38</td>
+                        <td class="loss-severity-cell severity-significant">Significant loss</td>
+                    </tr>
+                    <tr>
+                        <td class="land-class-cell">Urban</td>
+                        <td class="ndvi-value-cell">-0.09</td>
+                        <td class="loss-severity-cell severity-low">Low loss</td>
+                    </tr>
+                    <tr>
+                        <td class="land-class-cell">Bare/Sparse Vegetation</td>
+                        <td class="ndvi-value-cell">-0.02</td>
+                        <td class="loss-severity-cell severity-minimal">Minimal change</td>
+                    </tr>
+                    <tr>
+                        <td class="land-class-cell">Wetlands</td>
+                        <td class="ndvi-value-cell">-0.52</td>
+                        <td class="loss-severity-cell severity-severe">Severe loss</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Time Series Image Section -->
+    <div id="timeseries-section" class="hidden" style="margin-top: 30px;">
+        <h3>NDVI Change Time Series Analysis</h3>
+        <div style="text-align: center;">
+            <img src="./dNDVITimeSeries.png" alt="NDVI Time Series" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        </div>
+    </div>
+    
+    <!-- Description text box -->
+    <div id="description-box">
+        Select a layer to view information
+    </div>
+</body>
+<div id="layer-buttons">
+  <button class="layer-btn" data-layer="ndvi">NDVI Change</button>
+  <button class="layer-btn" data-layer="flood">Flood Extent</button>
+  <button class="layer-btn" data-layer="landcover">Land Cover</button>
+</div>
+
+<div id="map" style="height: 90vh;"></div>
+
+<script>
+    var mymap = L.map('myfirstmap').setView([35.5744, -82.5631], 11);
+    // USGS Topo basemap - uses Web Mercator (EPSG:3857) but projects correctly for EPSG:4326 overlays
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 16,
+    attribution: '&copy; USGS'
+    }).addTo(mymap);
+    
+    // Add labels layer (city names and highways)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri',
+        maxZoom: 16
+    }).addTo(mymap);
+     
+   
+var imageBounds = [
+  [35.393622, -82.734838], [35.842780, -82.195759]
+];
+
+//Add preNDVI, postNDVI and dNDVI image overlays
+var preNDVILayer = L.imageOverlay('./preNDVI4326.png', imageBounds, {
+    opacity: 1
+});
+
+var postNDVILayer = L.imageOverlay('./postNDVI4326.png', imageBounds, {
+    opacity: 1
+});
+
+var dNDVILayer = L.imageOverlay('./dNDVI4326.png', imageBounds, {
+    opacity: 1
+});
+
+var LulcLayer = L.imageOverlay('./lcFlood4326_Clip_1.png', imageBounds, {
+    opacity: 1
+});
+
+var yearPostRGBLayer = L.imageOverlay('./yearPostRGB.png', imageBounds, {
+    opacity: 1
+});
+
+// Create boundary layer from imported GeoJSON data
+console.log('boundaryData:', boundaryData);
+
+if (boundaryData && boundaryData.geometries && boundaryData.geometries.length > 0) {
+    console.log('First geometry:', boundaryData.geometries[0]);
+    console.log('First coordinates sample:', boundaryData.geometries[0].coordinates[0][0][0]);
+}
+
+// Function to convert Web Mercator to WGS84
+function merc2ll(coords) {
+    if (typeof coords[0] !== 'number') {
+        return coords.map(merc2ll);
+    }
+    const EARTH_RADIUS = 6378137;
+    const x = coords[0];
+    const y = coords[1];
+    return [
+        (x / EARTH_RADIUS) * (180 / Math.PI),
+        (2 * Math.atan(Math.exp(y / EARTH_RADIUS)) - Math.PI / 2) * (180 / Math.PI)
+    ];
+}
+
+// Convert boundary data from Web Mercator to WGS84
+var convertedBoundaryData = JSON.parse(JSON.stringify(boundaryData));
+if (convertedBoundaryData.geometries) {
+    convertedBoundaryData.geometries = convertedBoundaryData.geometries.map(geom => {
+        if (geom.type === 'MultiPolygon') {
+            geom.coordinates = geom.coordinates.map(polygon => 
+                polygon.map(ring => ring.map(merc2ll))
+            );
+        }
+        return geom;
+    });
+}
+
+var boundaryLayer = L.geoJSON(convertedBoundaryData, {
+    style: {
+        color: '#0000FF',
+        weight: 2,
+        fillColor: '#0000FF',
+        fillOpacity: 0.3,
+        dashArray: '5,5',
+        fillRule: 'evenodd'
+    },
+    onEachFeature: function(feature, layer) {
+        if (layer.setStyle) {
+            layer.setStyle({
+                fillRule: 'evenodd',
+                lineCap: 'round',
+                lineJoin: 'round'
+            });
+        }
+    }
+});
+
+// Convert and add flood zone data
+console.log('floodZoneAE data:', floodZoneAE);
+var convertedFloodZoneData = JSON.parse(JSON.stringify(floodZoneAE));
+if (convertedFloodZoneData.geometries) {
+    convertedFloodZoneData.geometries = convertedFloodZoneData.geometries.map(geom => {
+        if (geom.type === 'MultiPolygon' || geom.type === 'Polygon') {
+    
+        }
+        return geom;
+    });
+}
+
+var floodZoneLayer = L.geoJSON(convertedFloodZoneData, {
+    style: {
+        color: '#DAA520',
+        weight: 1.5,
+        fillColor: '#FFD700',
+        fillOpacity: 0.4,
+        fillRule: 'evenodd'
+    },
+    onEachFeature: function(feature, layer) {
+        if (layer.setStyle) {
+            layer.setStyle({
+                fillRule: 'evenodd',
+                lineCap: 'round',
+                lineJoin: 'round'
+            });
+        }
+    }
+});
+
+// Convert and add flood way data
+console.log('floodWay data:', floodWay);
+var convertedFloodWayData = JSON.parse(JSON.stringify(floodWay));
+if (convertedFloodWayData.geometries) {
+    convertedFloodWayData.geometries = convertedFloodWayData.geometries.map(geom => {
+        if (geom.type === 'MultiPolygon' || geom.type === 'Polygon') {
+        }
+        return geom;
+    });
+}
+
+var floodWayLayer = L.geoJSON(convertedFloodWayData, {
+    style: {
+        color: '#DC143C',
+        weight: 1.5,
+        fillColor: '#FF4500',
+        fillOpacity: 0.4,
+        fillRule: 'evenodd'
+    },
+    onEachFeature: function(feature, layer) {
+        if (layer.setStyle) {
+            layer.setStyle({
+                fillRule: 'evenodd',
+                lineCap: 'round',
+                lineJoin: 'round'
+            });
+        }
+    }
+});
+
+// Create a feature group that combines all flood layers
+var floodLayerGroup = L.featureGroup([boundaryLayer, floodZoneLayer, floodWayLayer]);
+
+console.log('Boundary layer created:', boundaryLayer);
+console.log('Flood zone layer created:', floodZoneLayer);
+console.log('Flood way layer created:', floodWayLayer);
+
+// Add preNDVI by default
+preNDVILayer.addTo(mymap);
+
+// NDVI LEGEND CONTROL
+var ndviLegend = L.control({ position: 'bottomright' });
+
+ndviLegend.onAdd = function (map) {
+  var div = L.DomUtil.create('div', 'info legend');
+
+  div.innerHTML = `
+    <h4>NDVI (Vegetation Health)</h4>
+    <i style="background:#FFFFFF"></i> No data (ie. water)<br>
+    <i style="background:#CE7E45"></i> Very low (bare / urban)<br>
+    <i style="background:#FCD163"></i> Low (sparse vegetation)<br>
+    <i style="background:#99B718"></i> Moderate vegetation<br>
+    <i style="background:#3E8601"></i> High vegetation density<br>
+  `;
+
+  return div;
+};
+
+
+
+//dNDVI Legend Control
+var dndviLegend = L.control({ position: 'bottomright' });
+
+dndviLegend.onAdd = function (map) {
+  var div = L.DomUtil.create('div', 'info legend');
+
+  div.innerHTML = `
+    <h4>NDVI Change (ΔNDVI)</h4>
+    <i style="background:#8b0000"></i> Severe vegetation loss<br>
+    <i style="background:#ff0000"></i> Moderate loss<br>
+    <i style="background:#ffa500"></i> Mild loss<br>
+    <i style="background:#ffffff; border:1px solid #ccc"></i> No significant change<br>
+    <i style="background:#c0ffc0"></i> Mild increase<br>
+    <i style="background:#00ff00"></i> Moderate increase<br>
+    <i style="background:#008000"></i> Strong increase<br>
+  `;
+
+  return div;
+};
+
+var lulcLegend = L.control({ position: 'bottomright' });
+
+lulcLegend.onAdd = function (map) {
+  var div = L.DomUtil.create('div', 'info legend');
+
+  div.innerHTML = `
+    <h4>Land Use / Land Cover</h4>
+    <i style="background:#006400"></i> Tree Cover<br>
+    <i style="background:#ffff4c"></i> Grassland<br>
+    <i style="background:#f096ff; border:1px solid #ccc"></i> Cropland<br>
+    <i style="background:#fa0000"></i> Urban<br>
+    <i style="background:#b4b4b4"></i> Bare/sparse Vegetation<br>
+    <i style="background:#0064c8"></i> Water<br>
+    <i style="background:#0096a0"></i> Wetlands<br>
+  `;
+
+  return div;
+};
+// ---- NDVI BUTTON LOGIC ---- //
+const ndviButtons = document.querySelectorAll('.ndvi-btn');
+
+console.log('Found buttons:', ndviButtons.length);
+
+ndviButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        console.log('Button clicked:', btn.dataset.layer);
+        const layerName = btn.dataset.layer;
+
+        // Remove all layers
+        if (mymap.hasLayer(preNDVILayer)) mymap.removeLayer(preNDVILayer);
+        if (mymap.hasLayer(postNDVILayer)) mymap.removeLayer(postNDVILayer);
+        if (mymap.hasLayer(dNDVILayer)) mymap.removeLayer(dNDVILayer);
+        if (mymap.hasLayer(LulcLayer)) mymap.removeLayer(LulcLayer);
+        if (mymap.hasLayer(yearPostRGBLayer)) mymap.removeLayer(yearPostRGBLayer);
+        if (mymap.hasLayer(floodLayerGroup)) mymap.removeLayer(floodLayerGroup);
+        mymap.removeControl(ndviLegend);
+        mymap.removeControl(dndviLegend);
+        mymap.removeControl(lulcLegend);
+        
+        // Hide chart and timeseries sections by default
+        document.getElementById('chart-section').classList.add('hidden');
+        document.getElementById('timeseries-section').classList.add('hidden');
+
+        // Add the selected layer and corresponding legend
+        if (layerName === 'pre') {
+            console.log('Adding preNDVI layer');
+            mymap.addLayer(preNDVILayer);
+            ndviLegend.addTo(mymap);
+            document.getElementById('opacity-control').classList.add('active');
+            document.getElementById('opacity-slider').value = 100;
+            document.getElementById('opacity-value').textContent = '100%';
+            document.getElementById('description-box').innerHTML = '<strong>Pre-Hurricane NDVI:</strong> This Normalized Difference Vegetation Index (NDVI) shows the vegetation health and density in the flood area of Buncombe County before Hurricane Helene. Green areas indicate healthy vegetation, while brown/tan areas indicate sparse vegetation or urban areas.<br><br>Date Range: July 1st - August 31st, 2024.<br><br> Data Source: Harmonized Sentinel-2 MSI: Multispectral Instrument, Level-2A (SR)';
+        } else if (layerName === 'post') {
+            console.log('Adding postNDVI layer');
+            mymap.addLayer(postNDVILayer);
+            ndviLegend.addTo(mymap);
+            document.getElementById('opacity-control').classList.add('active');
+            document.getElementById('opacity-slider').value = 100;
+            document.getElementById('opacity-value').textContent = '100%';
+            document.getElementById('description-box').innerHTML = '<strong>Post-Hurricane NDVI:</strong> This Normalized Difference Vegetation Index (NDVI) shows the vegetation health and density within weeks after Hurricane Helene. Comparing this with the Pre-Hurricane NDVI reveals areas where vegetation was damaged or affected by the hurricane. Areas that were previously dark green and are now light green or yellow indicate vegetation loss.<br><br>Date Range: October 1st - November 30th, 2024.<br><br> Data Source: Harmonized Sentinel-2 MSI: Multispectral Instrument, Level-2A (SR)';
+        } else if (layerName === 'delta') {
+            console.log('Adding dNDVI layer');
+            mymap.addLayer(dNDVILayer);
+            dndviLegend.addTo(mymap);
+            document.getElementById('opacity-control').classList.add('active');
+            document.getElementById('opacity-slider').value = 100;
+            document.getElementById('opacity-value').textContent = '100%';
+            document.getElementById('description-box').innerHTML = '<strong>ΔNDVI (Change):</strong> This layer shows the change in vegetation health between pre- and immediately post-hurricane conditions. Red areas indicate significant vegetation loss, while green areas show vegetation recovery or growth. The time series aboveshows how NDVI values changed over time across the flood area. <Br><br> Hurricane Helene occurred on September 26th to 27th, 2024. The time series shows how the NDVI values drasitcally decreased at the end of September. This illustrates the impact of the Hurricane on vegetation within the flood bounaries within Buncombe County.';
+            
+            // Show time series section
+            document.getElementById('timeseries-section').classList.remove('hidden');
+        } else if (layerName === 'lulc') {
+            console.log('Adding LULC layer');
+            mymap.addLayer(LulcLayer);
+            lulcLegend.addTo(mymap);
+            document.getElementById('opacity-control').classList.add('active');
+            document.getElementById('opacity-slider').value = 100;
+            document.getElementById('opacity-value').textContent = '100%';
+            document.getElementById('description-box').innerHTML = '<strong>Land Use/Land Cover:</strong> This layer displays the different types of land cover in the flood area of Buncombe County. The chart shows the area distribution of each land cover type in square meters. The Pie Chart depicts the percentage of each land cover class in the flood area.<br><br> The table shows the values of the mean change in NDVI values from before and after the hurricane. Urban areas and areas with bare/ sparce vegetation are not expected to have noticable change in NDVI because there is limited vegetation in those areas. <br><br> Data source: The European Space Agency (ESA) WorldCover 10m 2021';
+            
+            // Show chart section and create/update charts
+            document.getElementById('chart-section').classList.remove('hidden');
+            setTimeout(() => {
+                createLulcBarChart();
+                createLulcPieChart();
+            }, 100);
+        } else if (layerName === 'yearpost') {
+            console.log('Adding Post-Hurricane RGB layer');
+            mymap.addLayer(yearPostRGBLayer);
+            ndviLegend.addTo(mymap);
+            document.getElementById('opacity-control').classList.add('active');
+            document.getElementById('opacity-slider').value = 100;
+            document.getElementById('opacity-value').textContent = '100%';
+            document.getElementById('description-box').innerHTML = '<strong>One Year Post-Hurricane NDVI:</strong> This Normalized Difference Vegetation Index (NDVI) shows the vegetation health and density one year after Hurricane Helene. It allows for assessment of long-term recovery or lasting damage to the vegetation in the flood area of Buncombe County. <br><br> Date Range: October 1st - November 30th, 2025. <br><br> Harmonized Sentinel-2 MSI: Multispectral Instrument, Level-2A (SR)';
+        } else if (layerName === 'boundary') {
+            console.log('Adding flood layers');
+            mymap.addLayer(floodLayerGroup);
+            document.getElementById('flood-control-pane').classList.add('active');
+            document.getElementById('opacity-control').classList.add('active');
+            document.getElementById('opacity-slider').value = 100;
+            document.getElementById('opacity-value').textContent = '100%';
+            document.getElementById('description-box').innerHTML = '<strong>Flood Boundary:</strong> This layer shows flood boundary data for Buncombe County. Blue represents Hurricane Helene flood levels, yellow shows the FEMA 100-year floodplain, and red represents FEMA floodways. Use the checkboxes to toggle each layer on/off. <br><br> <strong>Background:</strong>  The 100-year Floodplain represents a 1% chance of flooding. These areas are only expected to flood every 100 years. Within this area, flood insurance is required if you have a federally backed mortgage. The floodway is the central channel and the adjacent area for floodwater. This is the most restricted area where new development is either prohibited or severely limited. <br><br> Data Source: Flood Boundary -  INPUT!!!!; Flood Zone and Flood Way - FEMA National Flood Hazard Layer (NFHL)';
+        }
+
+        // Hide flood control pane if any other layer is selected
+        if (layerName !== 'boundary') {
+            document.getElementById('flood-control-pane').classList.remove('active');
+        }
+
+        // Update button active state
+        ndviButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    });
+});
+
+// Add the pre-NDVI legend by default
+console.log('Adding default legend');
+ndviLegend.addTo(mymap);
+
+// ---- OPACITY SLIDER LOGIC ---- //
+document.getElementById('opacity-slider').addEventListener('input', (e) => {
+    const opacityValue = e.target.value / 100;
+    const opacityPercent = e.target.value;
+    
+    // Update opacity for all layers
+    preNDVILayer.setOpacity(opacityValue);
+    postNDVILayer.setOpacity(opacityValue);
+    dNDVILayer.setOpacity(opacityValue);
+    yearPostRGBLayer.setOpacity(opacityValue);
+    LulcLayer.setOpacity(opacityValue);
+    boundaryLayer.setOpacity(opacityValue);
+    floodZoneLayer.setOpacity(opacityValue);
+    floodWayLayer.setOpacity(opacityValue);
+    
+    // Update display
+    document.getElementById('opacity-value').textContent = opacityPercent + '%';
+});
+
+// ---- FLOOD LAYER CHECKBOX LOGIC ---- //
+document.getElementById('cb-boundary').addEventListener('change', (e) => {
+    if (e.target.checked) {
+        mymap.addLayer(boundaryLayer);
+    } else {
+        mymap.removeLayer(boundaryLayer);
+    }
+});
+
+document.getElementById('cb-zone').addEventListener('change', (e) => {
+    if (e.target.checked) {
+        mymap.addLayer(floodZoneLayer);
+    } else {
+        mymap.removeLayer(floodZoneLayer);
+    }
+});
+
+document.getElementById('cb-way').addEventListener('change', (e) => {
+    if (e.target.checked) {
+        mymap.addLayer(floodWayLayer);
+    } else {
+        mymap.removeLayer(floodWayLayer);
+    }
+});
+
+
+//LULC Charts Data
+const landCoverData = {
+  Trees: 26800823,
+  Grassland: 10381201,
+  Cropland: 4181798,
+  Urban: 4871980,
+  "Bare / Sparse": 627702,
+  Wetlands: 8442
+};
+
+const landCoverColors = {
+  Trees: "#006400",
+  Grassland: "#FFFF4C",
+  Cropland: "#F096FF",
+  Urban: "#FA0000",
+  "Bare / Sparse": "#B4B4B4",
+  Wetlands: "#0096A0"
+};
+
+const totalArea = Object.values(landCoverData).reduce((a, b) => a + b, 0);
+
+const landCoverPercent = {};
+for (let key in landCoverData) {
+  landCoverPercent[key] = ((landCoverData[key] / totalArea) * 100).toFixed(1);
+}
+
+let lulcBarChart, lulcPieChart;
+
+// Create Bar Chart showing area values
+function createLulcBarChart() {
+  const ctx = document.getElementById('lulcChart');
+  if (!ctx) return;
+  
+  // Destroy existing chart if it exists
+  if (lulcBarChart) lulcBarChart.destroy();
+  
+  lulcBarChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(landCoverData),
+      datasets: [{
+        label: 'Area (m²)',
+        data: Object.values(landCoverData),
+        backgroundColor: Object.values(landCoverColors),
+        borderColor: '#333',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const area = context.parsed.y.toLocaleString();
+              const label = context.label;
+              const pct = landCoverPercent[label];
+              return `${area} m² (${pct}%)`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          title: {
+            display: true,
+            text: 'Area (square meters)',
+            font: {
+              size: 14,
+              weight: 'bold'
+            }
+          },
+          ticks: {
+            callback: function(value) {
+              return value.toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Create Pie Chart showing percentages
+function createLulcPieChart() {
+  const ctx = document.getElementById('lulcPieChart');
+  if (!ctx) return;
+  
+  // Destroy existing chart if it exists
+  if (lulcPieChart) lulcPieChart.destroy();
+  
+  lulcPieChart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: Object.keys(landCoverData),
+      datasets: [{
+        data: Object.values(landCoverData),
+        backgroundColor: Object.values(landCoverColors),
+        borderColor: '#333',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'right'
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label;
+              const area = landCoverData[label].toLocaleString();
+              const pct = landCoverPercent[label];
+              return `${label}: ${area} m² (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+</script>
+</html>
+
+
+
+</script>
+</html>
